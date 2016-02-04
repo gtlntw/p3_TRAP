@@ -97,6 +97,8 @@ system(paste("rm weight_",seed,"*.ped", sep=""))
 system(paste("rm variant_pass_",seed,"*.ped", sep=""))
 ## Write out your results to a csv file
 result.df <- as.data.frame(t(sim_result))
+colnames(result.df) <- c("result.trap", "result.trap.association", "result.trap.combined", "result.trap.combined.z", "result.trap.combined.z.weighted",
+    "result.trafic_ext", "result.trafic_ext.association", "result.trafic_ext.combined", "result.trafic_ext.combined.z", "result.trafic_ext.combined.z.weighted")
 result.df <- cbind(seed,f,r,p_dis,risk.variant.id=paste(c(risk.variant.id), collapse = "_"),risk.haplo.f,n_family,family_strct,result.df)
 write.csv(result.df, paste("res_",seed,"_",r,"_",f,"_",n_family,".csv",sep=""), row.names=FALSE)
 ## R.miSniam
