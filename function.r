@@ -1054,6 +1054,8 @@ family.test <- function(data=family_generated, f=risk.variant.id, nofounderpheno
   	"3" = function(tran_vec, carrier, affect) {(any(tran_vec[, c("h1","h2")] %in% carrier)*2-1)*(2*affect-3)} #both affected and unaffected by individual
   )
   
+  #if using lm.test then set to not testing founder in TRAP part
+  if(association.test==T) nofounderphenotype <- T
   
   #start looking at each family
   test.stat <- sapply(1:n_family, function(x) {
@@ -1194,15 +1196,19 @@ family.test <- function(data=family_generated, f=risk.variant.id, nofounderpheno
     Xsq <- -2*sum(log(p))
     p.val <- pchisq(Xsq, df = 2*length(p), lower.tail = FALSE)
 
-    #z-score method
-		z.association <- qnorm(1-p.value.association)
-    z <- qnorm(1-p.value)
-    z.p.val <- 2*pnorm(abs((z + z.association)/sqrt(2)), lower.tail = F)
-    w1 <- 1.6; w2 <- .4
-    z.weighted.p.val <- 2*pnorm(abs((w1*z + w2*z.association)/sqrt(w1^2+w2^2)), lower.tail = F)
+    #SKAT with only founders in formative families
+  	lm.idx.info <- which((data$data_family$father==0 & data$data_family$mother==0) & data$data_family$family %in% test.stat$family.idx)
+  	data.info.diploid <- hap2dip(data=list(data_family=data$data_family[lm.idx.info, ]), risk.variant.id=risk.variant.id, save.file=F)
+	  obj <- SKAT_Null_Model(data.info.diploid$ped$trait ~ 1, out_type="D")
+    p.value.info.association <- SKAT(as.matrix(data.info.diploid$geno[, -c(1:2)]), obj, weights.beta = c(1,1), r.corr = 1)$p.value
+		#fisher's method
+    p.info <- c(p.value, p.value.info.association)
+    Xsq.info <- -2*sum(log(p.info))
+    p.val.info <- pchisq(Xsq.info, df = 2*length(p.info), lower.tail = FALSE)
+
     
     return(list(Xsq = Xsq, p.value = p.val, p.value.trap = p.value, p.value.association = p.value.association,
-  		 z.p.value=z.p.val, z.weighted.p.value = z.weighted.p.val))
+  		 Xsq.info = Xsq.info, p.value.info.association = p.value.info.association))
   }
 
   list(final.test.stat=final.test.stat, sum_e=sum(test.stat$mean), se=se, mean_observed=mean(test.stat$observed), mean_mean=mean(test.stat$mean), mean_var=mean(test.stat$var), p.value=p.value, n_info_family=length(test.stat$n_carrier))
@@ -1210,7 +1216,7 @@ family.test <- function(data=family_generated, f=risk.variant.id, nofounderpheno
 # family.test()
 
 ##family test in TRAFIC spirit
-family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nofounderpheno=F, test_sq=F, association.test=F) {
+family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nofounderphenotype=F, test_sq=F, association.test=F) {
   ##hypothesis testing count the number of carrier haplotypes transmitted to the offsprings
   n_family <- max(data$data_family$family)
   n_family_member <- table(data$data_family$family)
@@ -1219,6 +1225,8 @@ family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nof
     snp2look.idx <-  which(snp$FREQ1 < f) # snp to look for
   } else(snp2look.idx <-  f)
   
+  #if using lm.test then set to not testing founder in TRAP part
+  if(association.test==T) nofounderphenotype <- T
   
   #start looking at each family
   data.family <- lapply(1:n_family, function(x) {
@@ -1234,7 +1242,7 @@ family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nof
     person <- c(0,family_strct[,2]) #adding 0 to check if the chromosome if from missing founder
     
     #number of unique haplotype among affected family members
-    if(nofounderpheno==F) {
+    if(nofounderphenotype==F) {
       affect_id <- which(affect==2)
     }else {
       affect_id <- which(affect[-c(1:2)]==2)+2
@@ -1314,7 +1322,12 @@ family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nof
       #       ,ifelse(sum(h2[2, snp2look.idx]==1)>0, tran_vec[2, "h2"], NA) #check second founder's h2
       #     )
       n_carrier_family[family.idx] <<- n_carrier <- sum(!is.na(carrier)) #no. of carrier haplotypes
+      
+      if(n_carrier >= 1) {
+      	c(family.idx=family.idx)
+      }
     })
+    test.stat <- data.frame(do.call(rbind, test.stat))
     
     #SKAT with all founders only
   	lm.idx <- which(data$data_family$father==0 & data$data_family$mother==0)
@@ -1327,15 +1340,19 @@ family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nof
     Xsq <- -2*sum(log(p))
     p.val <- pchisq(Xsq, df = 2*length(p), lower.tail = FALSE)
 
-    #z-score method
-		z.association <- qnorm(1-p.value.association)
-    z <- qnorm(1-p.value)
-    z.p.val <- 2*pnorm(abs((z + z.association)/sqrt(2)), lower.tail = F)
-    w1 <- 1.6; w2 <- .4
-    z.weighted.p.val <- 2*pnorm(abs((w1*z + w2*z.association)/sqrt(w1^2+w2^2)), lower.tail = F)
-      
+    #SKAT with only founders in formative families
+  	lm.idx.info <- which((data$data_family$father==0 & data$data_family$mother==0) & (data$data_family$family %in% test.stat$family.idx))
+  	data.info.diploid <- hap2dip(data=list(data_family=data$data_family[lm.idx.info, ]), risk.variant.id=risk.variant.id, save.file=F)
+	  obj <- SKAT_Null_Model(data.info.diploid$ped$trait ~ 1, out_type="D")
+    p.value.info.association <- SKAT(as.matrix(data.info.diploid$geno[, -c(1:2)]), obj, weights.beta = c(1,1), r.corr = 1)$p.value
+		
+    #fisher's method
+    p.info <- c(p.value, p.value.info.association)
+    Xsq.info <- -2*sum(log(p.info))
+    p.val.info <- pchisq(Xsq.info, df = 2*length(p.info), lower.tail = FALSE)
+
     return(list(Xsq = Xsq, p.value = p.val, p.value.trafic_ext = p.value, p.value.association = p.value.association,
-  		 z.p.value=z.p.val, z.weighted.p.value = z.weighted.p.val))
+  		 Xsq.info = Xsq.info, p.value.info.association = p.value.info.association))
   }
 
   
