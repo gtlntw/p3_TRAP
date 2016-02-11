@@ -93,9 +93,9 @@ sim_result <- replicate(n_rep, {
 system(paste("rm results_",seed,"*.txt", sep=""))
 system(paste("rm mendelian_errors_",seed,"*.txt", sep=""))
 system(paste("rm data_",seed,"*.ped", sep=""))
-system(paste("rm genes_",seed,"*.ped", sep=""))
-system(paste("rm weight_",seed,"*.ped", sep=""))
-system(paste("rm variant_pass_",seed,"*.ped", sep=""))
+system(paste("rm genes_",seed,"*.txt", sep=""))
+system(paste("rm weight_",seed,"*.txt", sep=""))
+system(paste("rm variant_pass_",seed,"*.txt", sep=""))
 ## Write out your results to a csv file
 result.df <- as.data.frame(t(sim_result))
 colnames(result.df) <- c("result.trap", "result.trap.nofounder", "result.trap.association", "result.trap.info.association", "result.trap.combined", "result.trap.combined.info",
@@ -149,7 +149,7 @@ for i in numpy.arange(1,2.0,0.1):
 		tgt = 'callmainSim_{seed}.OK'.format(**opts)
 		inputFilesOK.append(tgt)
 		dep = ''
-		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
+		cmd = ['R --no-save --no-restore --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
 		makeJob(opts['launchMethod'], tgt, dep, cmd)
 		opts['seed'] += 1	
 
@@ -196,7 +196,7 @@ cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2"
 #check power using true, imputed founder carrier, minimum offspring carrier
 #three versions -- command and rare and super rare #2 for common, 7 for rare, 39 for super rare
 alpha=0.05
-result <- read.csv("2016-02-04 between and within use z method.csv", header=T)
+result <- read.csv("2016-02-09 between only using infomative famlit and within.csv", header=T)
 result <- result %>% gather(key="method", value="p.value", -c(1:8))
 result.plot <- result %>% group_by(f, risk.variant.id, risk.haplo.f, r, method) %>% 
   summarise(n=n(), power=mean(p.value<alpha, na.rm=T))

@@ -917,7 +917,7 @@ gene_family <- function(family_strct=family_strct.2g2c, n_family=100, haplotype.
 
 ##consider polygenic effect when generating family data
 ##3. simulate data using the new model
-gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=0.1, Beta=Beta) {
+gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=0.1, Beta=Beta, exact_affected=T) {
 	library(kinship2) #load kinship function to calculate kinship matrix
 	#get genotype matrix
 	n_haplo <- nrow(haplotype)
@@ -926,10 +926,18 @@ gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=
   data_family <- matrix(NA, nrow=n_family*n_family_member, ncol=(6+n_snp*2))
   tran_vec <- matrix(NA, nrow=n_family*n_family_member, ncol=3)
   affect_spec <- family_strct$affect-1 # afffect statuts
+  n_affect_spec <- sum(affect_spec) # number of affected
   haplotype.effect <- as.matrix(2- haplotype[, -(1:2)]) %*% Beta #precalculate to speed up
   #the strategy is generate the whole family and check affected status if fail then restart from the first individual
   data_family.idx <- 1 #index of the current family member being generated
   n_family.idx <- 1 #index of how many families have been generated
+  
+  #generate exact affected members or just the total number of affected
+  if(exact_affected == T) {
+    criteria <- expression(all(affect_status==affect_spec))
+  } else {
+    criteria <- expression(n_affect == n_affect_spec)
+  }
   
   ##parameters to generate phenotype
   pe_var <- 0.5 #p*(1-p)/(exp(2*p)/(exp(p)+1)^4) to achieve 50% heritability
@@ -961,13 +969,14 @@ gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=
 		p_star <- MASS::mvrnorm(1, mu=mu, Sigma=PE_E)
 		(p <- plogis(p_star))
 		(affect_status <- rbinom(rep(1,n_family_member), 1, p))
+		(n_affect <- sum(affect_status))
 		
-		if(all(affect_status==affect_spec)) {
+		if(eval(criteria)) {
 	    #save the haplotype file
 	    letter.idx <- 1 #indicator used in the transmission vector
 	    for(i in 1:n_family_member) {
 	      #store genope and transmission vector
-	      data_family[data_family.idx, ] <- unlist(c(n_family.idx, family_strct[i,2:6], haplotype[family.haplo[i,1],-c(1:2)], haplotype[family.haplo[i,2],-c(1:2)]))
+	      data_family[data_family.idx, ] <- unlist(c(n_family.idx, family_strct[i,2:5], affect_status[i] + 1, haplotype[family.haplo[i,1],-c(1:2)], haplotype[family.haplo[i,2],-c(1:2)]))
 	      if(family_strct$father[i]==0 & family_strct$mother[i]==0) { #if founder
 	        tran_vec[data_family.idx,] <- c(n_family.idx, LETTERS[letter.idx], LETTERS[letter.idx+1])
 	        letter.idx <- letter.idx + 2
@@ -991,7 +1000,14 @@ gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=
 # Beta <- rep(0, length.out=50)
 # Beta[7] <- log(1) #effect size of OR=2
 # gene_family_pe(family_strct=family_strct_ped, n_family= 100, p_dis=0.1, Beta=Beta)
-
+##example
+if(FALSE) {
+	p_dis=0.30
+	n_family=1000
+	family_strct="2g.2a.2u"
+	f=0.01
+	r=1
+}
 ##construct kinship matrix
 
 
@@ -1208,7 +1224,7 @@ family.test <- function(data=family_generated, f=risk.variant.id, nofounderpheno
 
     
     return(list(Xsq = Xsq, p.value = p.val, p.value.trap = p.value, p.value.association = p.value.association,
-  		 Xsq.info = Xsq.info, p.value.info.association = p.value.info.association))
+  		 Xsq.info = Xsq.info, p.value.info = p.val.info, p.value.info.association = p.value.info.association))
   }
 
   list(final.test.stat=final.test.stat, sum_e=sum(test.stat$mean), se=se, mean_observed=mean(test.stat$observed), mean_mean=mean(test.stat$mean), mean_var=mean(test.stat$var), p.value=p.value, n_info_family=length(test.stat$n_carrier))
@@ -1352,7 +1368,7 @@ family.test.trafic.ext <- function(data=family_generated, f=risk.variant.id, nof
     p.val.info <- pchisq(Xsq.info, df = 2*length(p.info), lower.tail = FALSE)
 
     return(list(Xsq = Xsq, p.value = p.val, p.value.trafic_ext = p.value, p.value.association = p.value.association,
-  		 Xsq.info = Xsq.info, p.value.info.association = p.value.info.association))
+  		 Xsq.info = Xsq.info, p.value.info = p.val.info, p.value.info.association = p.value.info.association))
   }
 
   

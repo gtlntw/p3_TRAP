@@ -98,9 +98,9 @@ sim_result <- replicate(n_rep, {
 system(paste("rm results_",seed,"*.txt", sep=""))
 system(paste("rm mendelian_errors_",seed,"*.txt", sep=""))
 system(paste("rm data_",seed,"*.ped", sep=""))
-system(paste("rm genes_",seed,"*.ped", sep=""))
-system(paste("rm weight_",seed,"*.ped", sep=""))
-system(paste("rm variant_pass_",seed,"*.ped", sep=""))
+system(paste("rm genes_",seed,"*.txt", sep=""))
+system(paste("rm weight_",seed,"*.txt", sep=""))
+system(paste("rm variant_pass_",seed,"*.txt", sep=""))
 ## Write out your results to a csv file
 result.df <- as.data.frame(t(sim_result))
 colnames(result.df) <- c("result.trap.3c.noimpute", "result.trap.3c.impute.founder.pop.f",
@@ -132,7 +132,8 @@ dep = ''
 cmd = ['[ ! -f {outputDir}/runmake_{jobName}_time.log ] && echo > {outputDir}/runmake_{jobName}_time.log; date | awk \'{{print "Simulations pipeline\\n\\nstart: "$$0}}\' >> {outputDir}/runmake_{jobName}_time.log'.format(**opts)]
 makeJob('local', tgt, dep, cmd)
 
-opts["param"] = "--time=1-12:0 --exclude=dl3601" #indicate this is a quick job
+opts["exclude"] = "--exclude=dl3601"
+opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
 ######################
 #1.1. run simulations by calling mainSim.R
 ######################
@@ -176,27 +177,19 @@ for i in numpy.arange(1,1.4,0.1):
 ######################
 tgt = 'pasteResults.OK'
 dep = ' '.join(inputFilesOK)
-cmd = ['Rscript paste_mainSim_results.R']
+cmd = ['python paste_mainSim_results.py']
 makeJob('local', tgt, dep, cmd)
 
 ######################
-#1.3. delete unnecesary files
-######################
-tgt = 'delTempFile.OK'
-dep = 'pasteResults.OK'
-cmd = ['rm -f result*.txt mendelian*.txt gene*.txt weight*.txt variant_pass*.txt data*.ped'.format(**opts)]
-makeJob('local', tgt, dep, cmd)
-
-######################
-#1.4. copy the results to a folder with name $jobName
+#1.3. copy the results to a folder with name $jobName
 ######################
 tgt = 'backupResult.OK'
-dep = 'delTempFile.OK'
+dep = 'pasteResults.OK'
 cmd = ['cp * {jobName}/'.format(**opts)]
 makeJob('local', tgt, dep, cmd)
 
 ######################
-#1.5. log the end time
+#1.4. log the end time
 ######################
 tgt = '{outputDir}/end.runmake.{jobName}.OK'.format(**opts)
 dep = 'pasteResults.OK'
