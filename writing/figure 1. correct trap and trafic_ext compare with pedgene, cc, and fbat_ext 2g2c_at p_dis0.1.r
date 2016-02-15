@@ -72,10 +72,16 @@ sim_result <- replicate(n_rep, {
   #run tests
   result.trap <- family.test(data=family_generated, f=risk.variant.id)$p.value
   result.trafic.ext <- family.test.trafic.ext(data=family_generated, f=risk.variant.id)$p.value
-  result.pedgene <- pedgene(ped=family_generated_diploid$ped, geno=family_generated_diploid$geno)
-  print(result.pedgene)
-  result.pedgene.vc <- result.pedgene$pgdf$pval.kernel
-  result.pedgene.burden <- result.pedgene$pgdf$pval.burden
+  sim.fail <- tryCatch({  
+      result.pedgene <- pedgene(ped=family_generated_diploid$ped, geno=family_generated_diploid$geno)
+      print(result.pedgene)
+      result.pedgene.vc <- result.pedgene$pgdf$pval.kernel
+      result.pedgene.burden <- result.pedgene$pgdf$pval.burden
+      F
+    }, 
+    error = function(e) return(T) 
+  )
+  
   
   system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 0 0", sep=""))
   system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 1 0", sep=""), ignore.stdout = TRUE)
@@ -89,12 +95,18 @@ sim_result <- replicate(n_rep, {
   data.cc.diploid <- hap2dip(data=list(data_family=data.cc), risk.variant.id=risk.variant.id, save.file=F)
   obj <- SKAT_Null_Model(data.cc.diploid$ped$trait ~ 1, out_type="D")
   result.cc <- SKAT(as.matrix(data.cc.diploid$geno[, -c(1:2)]), obj, weights.beta = c(1,1), r.corr = 1)$p.value
-  
+
   #only report p.value
-  c(result.trap, result.trafic.ext, 
+  result <- c(result.trap, result.trafic.ext, 
     result.pedgene.vc, result.pedgene.burden,
     result.fbskat.vc, result.fbskat.burden,
-    result.cc)
+    result.cc)  
+  #report NA when errors occured
+  if(sim.fail==F) {
+    result
+  } else {
+    rep(NA, length(result))
+  }
 })
 ##remove junk files produced by fbskat
 system(paste("rm results_",seed,"*.txt", sep=""))

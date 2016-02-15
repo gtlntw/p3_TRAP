@@ -68,31 +68,30 @@ sim_result <- replicate(n_rep, {
   
   #remove the founder from the data
   family_generated_c <- family_generated
-  family_generated_founder <- list()
   temp.idx <- which(family_generated$data_family$person %in% 1:2) #take out founders
-  family_generated_founder$data_family <- family_generated$data_family[temp.idx, ]
-  family_generated_founder$tran_vec <- family_generated$tran_vec[temp.idx, ]
   family_generated_c$data_family <- family_generated$data_family[-temp.idx, ]
   family_generated_c$tran_vec <- family_generated$tran_vec[-temp.idx, ]
   
   ##test based on new imputation framework
   result.trap.3c.noimpute <- family.test(data=family_generated, f=risk.variant.id, nofounderphenotype=T)$p.value
-  result.trap.3c.impute.founder.pop.f <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=0)
-  result.trap.3c.impute.founder.pop.f.off.5 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=5)
-  result.trap.3c.impute.founder.pop.f.off.10 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=10)
-  result.trap.3c.impute.founder.pop.f.off.20 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=20)
-  result.trap.3c.impute.founder.pop.f.off.50 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=50)
-  result.trap.3c.impute.founder.pop.f.off.n5 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=-5)
-  result.trap.3c.impute.founder.pop.f.off.n10 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=-10)
-  result.trap.3c.impute.founder.pop.f.off.n20 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=-20)
-  result.trap.3c.impute.founder.pop.f.off.n50 <- family.test.trap.impute.founder(data=family_generated_c, f=risk.variant.id, pop.f=T, pop.f.off=-50)
+  result.trap.3c.impute.founder.pop.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=0)
+  result.trap.3c.impute.founder.pop.f.off.5 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=5)
+  result.trap.3c.impute.founder.pop.f.off.10 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=10)
+  result.trap.3c.impute.founder.pop.f.off.20 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=20)
+  result.trap.3c.impute.founder.pop.f.off.50 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=50)
+  result.trap.3c.impute.founder.pop.f.off.n5 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=-5)
+  result.trap.3c.impute.founder.pop.f.off.n10 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=-10)
+  result.trap.3c.impute.founder.pop.f.off.n20 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=-20)
+  result.trap.3c.impute.founder.pop.f.off.n50 <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=-50)
+  result.trap.3c.impute.founder.sample.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=T)
   
   #only report p.value
   c(result.trap.3c.noimpute, result.trap.3c.impute.founder.pop.f,
     result.trap.3c.impute.founder.pop.f.off.5, result.trap.3c.impute.founder.pop.f.off.10,
     result.trap.3c.impute.founder.pop.f.off.20, result.trap.3c.impute.founder.pop.f.off.50,
     result.trap.3c.impute.founder.pop.f.off.n5, result.trap.3c.impute.founder.pop.f.off.n10,
-    result.trap.3c.impute.founder.pop.f.off.n20, result.trap.3c.impute.founder.pop.f.off.n50)
+    result.trap.3c.impute.founder.pop.f.off.n20, result.trap.3c.impute.founder.pop.f.off.n50,
+    result.trap.3c.impute.founder.sample.f)
 })
 ##remove junk files produced by fbskat
 system(paste("rm results_",seed,"*.txt", sep=""))
@@ -107,7 +106,8 @@ colnames(result.df) <- c("result.trap.3c.noimpute", "result.trap.3c.impute.found
                          "result.trap.3c.impute.founder.pop.f.off.5", "result.trap.3c.impute.founder.pop.f.off.10",
                          "result.trap.3c.impute.founder.pop.f.off.20", "result.trap.3c.impute.founder.pop.f.off.50",
 											   "result.trap.3c.impute.founder.pop.f.off.n5", "result.trap.3c.impute.founder.pop.f.off.n10",
-											   "result.trap.3c.impute.founder.pop.f.off.n20", "result.trap.3c.impute.founder.pop.f.off.n50")
+											   "result.trap.3c.impute.founder.pop.f.off.n20", "result.trap.3c.impute.founder.pop.f.off.n50",
+											   "result.trap.3c.impute.founder.sample.f")
 result.df <- cbind(seed,f,r,p_dis,risk.variant.id=paste(c(risk.variant.id), collapse = "_"),risk.haplo.f,n_family,family_strct,result.df)
 write.csv(result.df, paste("res_",seed,"_",r,"_",f,"_",n_family,".csv",sep=""), row.names=FALSE)
 ## R.miSniam
@@ -132,7 +132,7 @@ dep = ''
 cmd = ['[ ! -f {outputDir}/runmake_{jobName}_time.log ] && echo > {outputDir}/runmake_{jobName}_time.log; date | awk \'{{print "Simulations pipeline\\n\\nstart: "$$0}}\' >> {outputDir}/runmake_{jobName}_time.log'.format(**opts)]
 makeJob('local', tgt, dep, cmd)
 
-opts["exclude"] = "--exclude=dl3601"
+opts["exclude"] = "--exclude=../exclude_node.txt"
 opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
 ######################
 #1.1. run simulations by calling mainSim.R
@@ -140,7 +140,7 @@ opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a qui
 inputFilesOK = []
 opts['f'] = 0.01 #super rare
 opts['family_strct'] = '\"2g.4a.1u\"' #family structure
-for i in numpy.arange(1,2.0,0.1):
+for i in numpy.arange(1,2.4,0.1):
 	for j in range(opts['n_ite']):
 		opts['r'] = i
 		tgt = 'callmainSim_{seed}.OK'.format(**opts)
@@ -151,7 +151,7 @@ for i in numpy.arange(1,2.0,0.1):
 		opts['seed'] += 1	
 
 opts['f'] = 0.05 #less rare
-for i in numpy.arange(1,1.6,0.1):
+for i in numpy.arange(1,1.8,0.1):
 	for j in range(opts['n_ite']):
 		opts['r'] = i
 		tgt = 'callmainSim_{seed}.OK'.format(**opts)
@@ -162,7 +162,7 @@ for i in numpy.arange(1,1.6,0.1):
 		opts['seed'] += 1	
 
 opts['f'] = 0.20 #common
-for i in numpy.arange(1,1.4,0.1):
+for i in numpy.arange(1,1.6,0.1):
 	for j in range(opts['n_ite']):
 		opts['r'] = i
 		tgt = 'callmainSim_{seed}.OK'.format(**opts)
