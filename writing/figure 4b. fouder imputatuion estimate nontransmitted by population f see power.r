@@ -45,6 +45,7 @@ n_cc <- length(family_strct_ped$person)/2*n_family
 # risk.variant.id <<- sort(sample(which(0.0001<snp$FREQ1 & snp$FREQ1<f), round(n_snp_f_causal)))
 # risk.haplo.id <- which(apply(2-as.matrix(haplotype[, risk.variant.id+2]), 1, sum)>0)
 risk.variant.id <- switch(as.character(f),
+                          "0.005"=c(5,32,37),
                           "0.01"=c(4,37,38),
                           "0.05"=c(12,20,37,44),
                           "0.2"=c(1,4,22,26)
@@ -64,44 +65,26 @@ for(i in 1:n_rep) {
   print(i)
   sim.fail <- F
   
-  #simulation for two-generation families
-  family_generated <<- gene_family_pe(family_strct=family_strct_ped, n_family=n_family, p_dis=p_dis, Beta=Beta, exact_affected = F) 
-  #add pseudo null variant since FB-SKAT can only work with 2+ in a gene
-  family_generated_diploid <- hap2dip(data=family_generated, risk.variant.id=risk.variant.id, save.file=T)
+  family_generated <<- gene_family_pe(family_strct=family_strct_ped, n_family=n_family, p_dis=p_dis, Beta=Beta)
   
-  #run tests
-  result.trap <- family.test(data=family_generated, f=risk.variant.id)$p.value
-  result.trafic.ext <- family.test.trafic.ext(data=family_generated, f=risk.variant.id)$p.value
-  sim.fail <- tryCatch({  
-      result.pedgene <- pedgene(ped=family_generated_diploid$ped, geno=family_generated_diploid$geno)
-      print(result.pedgene)
-      result.pedgene.vc <- result.pedgene$pgdf$pval.kernel
-      result.pedgene.burden <- result.pedgene$pgdf$pval.burden
-      F
-    }, 
-    error = function(e) return(T) 
-  )
+  #remove the founder from the data
+  family_generated_c <- family_generated
+  temp.idx <- which(family_generated$data_family$person %in% 1:2) #take out founders
+  family_generated_c$data_family <- family_generated$data_family[-temp.idx, ]
+  family_generated_c$tran_vec <- family_generated$tran_vec[-temp.idx, ]
   
-  system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 0 0", sep=""))
-  system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 1 0", sep=""), ignore.stdout = TRUE)
-  x <- read.table(paste("results_", seed,"_1.000000_0.010000_0.txt", sep="")) #variance component
-  result.fbskat.vc <- 1-pchisq(x[,4],x[,5])
-  x <- read.table(paste("results_", seed,"_1.000000_0.010000_1.txt", sep="")) #burden
-  result.fbskat.burden=1-pchisq(x[,4],x[,5])
+  ##test based on new imputation framework
+  result.trap.3c.noimpute <- family.test(data=family_generated, f=risk.variant.id, nofounderphenotype=T)$p.value
+  result.trap.3c.impute.founder.pop.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=0)
+  result.trap.3c.impute.founder.sample.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=T, no.pop=T)
+  result.trap.3c.impute.founder.assumed.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, no.pop=T)
   
-  #case-control use burden test with equal weight
-  data.cc <- gene_case_control_pe(n_case_control_pair=n_cc, p_dis=p_dis, Beta=Beta)
-  data.cc.diploid <- hap2dip(data=list(data_family=data.cc), risk.variant.id=risk.variant.id, save.file=F)
-  obj <- SKAT_Null_Model(data.cc.diploid$ped$trait ~ 1, out_type="D")
-  result.cc <- SKAT(as.matrix(data.cc.diploid$geno[, -c(1:2)]), obj, weights.beta = c(1,1), r.corr = 1)$p.value
-
+  
   #skip return when errors occured
   if(sim.fail==F) {
     #only report p.value
-    sim_result[[i]] <- data.frame(result.trap, result.trafic.ext, 
-                result.pedgene.vc, result.pedgene.burden,
-                result.fbskat.vc, result.fbskat.burden,
-                result.cc) 
+    sim_result[[i]] <- data.frame(result.trap.3c.noimpute, result.trap.3c.impute.founder.pop.f,
+                    result.trap.3c.impute.founder.sample.f, result.trap.3c.impute.founder.assumed.f) 
   } else {
     warning("error occured!!")
     next
@@ -122,14 +105,15 @@ write.csv(result.df, paste("res_",seed,"_",r,"_",f,"_",n_family,".csv",sep=""), 
 ## End(Not run)
 ## Not run:
 
-###########################################
+###############################################################################
+####################commands to run jobs in parallel
 ##initialize
 opts['seed']=1000 #starting seed number
 opts['n_rep_total']=1000 #total number of replications
-opts['n_rep']=50 #number of replications in each parallele job
+opts['n_rep']=100 #number of replications in each parallele job
 opts['n_ite']=opts['n_rep_total']/opts['n_rep'] #number of parallele jobs
 opts['n_family']=1000 #number of family
-opts['p_dis']=0.01 #prevalence
+opts['p_dis']=0.3 #prevalence
 
 ######################
 #1.0. log the start time
@@ -145,40 +129,39 @@ opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a qui
 #1.1. run simulations by calling mainSim.R
 ######################
 inputFilesOK = []
-#family_strct=2g.3a.1u
-opts['family_strct'] = '\"2g.2a.2u\"' #family structure
-opts['f'] = 0.01 #rare
-for i in numpy.arange(1,4.1,0.1):
-  for j in range(opts['n_ite']):
-    opts['r'] = i
-    tgt = 'callmainSim_{seed}.OK'.format(**opts)
-    inputFilesOK.append(tgt)
-    dep = ''
-    cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
-    makeJob(opts['launchMethod'], tgt, dep, cmd)
-    opts['seed'] += 1	
+opts['f'] = 0.01 #super rare
+opts['family_strct'] = '\"2g.4a.1u\"' #family structure
+for i in numpy.arange(1,2.4,0.1):
+	for j in range(opts['n_ite']):
+		opts['r'] = i
+		tgt = 'callmainSim_{seed}.OK'.format(**opts)
+		inputFilesOK.append(tgt)
+		dep = ''
+		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
+		makeJob(opts['launchMethod'], tgt, dep, cmd)
+		opts['seed'] += 1	
 
 opts['f'] = 0.05 #less rare
-for i in numpy.arange(1,3.0,0.1):
-  for j in range(opts['n_ite']):
-    opts['r'] = i
-    tgt = 'callmainSim_{seed}.OK'.format(**opts)
-    inputFilesOK.append(tgt)
-    dep = ''
-    cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
-    makeJob(opts['launchMethod'], tgt, dep, cmd)
-    opts['seed'] += 1	
+for i in numpy.arange(1,1.8,0.1):
+	for j in range(opts['n_ite']):
+		opts['r'] = i
+		tgt = 'callmainSim_{seed}.OK'.format(**opts)
+		inputFilesOK.append(tgt)
+		dep = ''
+		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
+		makeJob(opts['launchMethod'], tgt, dep, cmd)
+		opts['seed'] += 1	
 
 opts['f'] = 0.20 #common
-for i in numpy.arange(1,2.0,0.1):
-  for j in range(opts['n_ite']):
-    opts['r'] = i
-    tgt = 'callmainSim_{seed}.OK'.format(**opts)
-    inputFilesOK.append(tgt)
-    dep = ''
-    cmd = ['R --no-save --no-restore --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
-    makeJob(opts['launchMethod'], tgt, dep, cmd)
-    opts['seed'] += 1	
+for i in numpy.arange(1,1.6,0.1):
+	for j in range(opts['n_ite']):
+		opts['r'] = i
+		tgt = 'callmainSim_{seed}.OK'.format(**opts)
+		inputFilesOK.append(tgt)
+		dep = ''
+		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
+		makeJob(opts['launchMethod'], tgt, dep, cmd)
+		opts['seed'] += 1	
 
 ######################
 #1.2. combine the result
@@ -211,27 +194,41 @@ cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 #check power using true, imputed founder carrier, minimum offspring carrier
 #three versions -- command and rare and super rare #2 for common, 7 for rare, 39 for super rare
-result <- read.csv("figure 1. correct trap and trafic_ext compare with pedgene, cc, and fbat_ext 2g2c_at p_dis0.1.csv", header=T)
-result <- result %>% gather(key="method", value="p.value", 9:15)
-result.plot <- result %>% group_by(f, risk.variant.id, risk.haplo.f, r, method) %>% 
-  summarise(n=n(), power=mean(p.value<2.5*10^-6, na.rm=T))
-result.plot$risk.haplo.f <- factor(result.plot$risk.haplo.f, labels=c("f=0.01","f=0.05","f=0.20"))
-result.plot$method <- factor(result.plot$method, levels=c("result.trap", "result.trafic.ext", "result.pedgene.vc", 
-																													"result.pedgene.burden","result.fbskat.vc","result.fbskat.burden","result.cc"), 
-														 labels = c("TRAP", "TRAFIC_EXT", "Pedgene.vc", "Pedgene", "FB-SKAT.vc", "FB-SKAT","CC"))
+result <- read.csv("figure 4. fouder imputatuion estimate nontransmitted by population f see power.csv", header=T)
+result <- result %>% gather(key="method", value="p.value", 9:18)
+result.plot <- result %>% group_by(f, risk.haplo.f, r, method) %>% 
+  summarise(n=n(), power=mean(p.value<0.05, na.rm=T))
+result.plot$method <- factor(result.plot$method, labels=c("w.o. imputation", "pop.f", "pop.f off 5%", "pop.f off 10%",
+                                                "pop.f off 20%", "pop.f off 50%", "pop.f off -5%", "pop.f off -10%"
+                                                , "pop.f off -20%", "pop.f off -50%"))
 
-#figure 1
+#only include 20%off
 pd <- position_dodge(0.0)
-filter(result.plot, !grepl("vc", method)) %>% ggplot(aes(x=r, y=power, ymax=max(power), group=method, col=method)) +
+filter(result.plot, !grepl("conditional|10%|5%|50%", method)) %>% ggplot(aes(x=r, y=power, ymax=max(power), group=method, col=method)) +
   #   geom_point(size=3, alpha=1) +
-  facet_wrap(~risk.haplo.f, ncol=3, scale="free_x") +
+  facet_wrap(~f, ncol=3, scale="free_x") +
   geom_line(size=1.2, alpha=0.7, position=pd) +
   geom_point(size=1.2, position=pd) +
-#   ggtitle("f=0.202, consider effect size of risk haplotypes, TRAP") +
-#   ggtitle("f=0.0178, consider effect size of risk haplotypes, TRAP") +
-#   ggtitle("f=0.0039, consider effect size of risk haplotypes, TRAP") +
+  #   ggtitle("f=0.202, consider effect size of risk haplotypes, TRAP") +
+  #   ggtitle("f=0.0178, consider effect size of risk haplotypes, TRAP") +
+  #   ggtitle("f=0.0039, consider effect size of risk haplotypes, TRAP") +
   labs(x="odds ratio r") +
   scale_y_continuous(limits=c(0,1)) +
   theme_gray(base_size = 20) +
-  theme(legend.position="bottom", panel.background = element_rect(fill = 'grey85')) +
+  theme(legend.position="right", panel.background = element_rect(fill = 'grey85')) +
   scale_color_manual(values=cbbPalette)
+
+#everything
+pd <- position_dodge(0.0)
+filter(result.plot, !grepl("conditional", method)) %>% ggplot(aes(x=r, y=power, ymax=max(power), group=method, col=method)) +
+  #   geom_point(size=3, alpha=1) +
+  facet_wrap(~f, ncol=3, scale="free_x") +
+  geom_line(size=1.2, alpha=0.7, position=pd) +
+  geom_point(size=1.2, position=pd) +
+  #   ggtitle("f=0.202, consider effect size of risk haplotypes, TRAP") +
+  #   ggtitle("f=0.0178, consider effect size of risk haplotypes, TRAP") +
+  #   ggtitle("f=0.0039, consider effect size of risk haplotypes, TRAP") +
+  labs(x="odds ratio r") +
+  scale_y_continuous(limits=c(0,1)) +
+  theme_gray(base_size = 20) +
+  theme(legend.position="right", panel.background = element_rect(fill = 'grey85'))

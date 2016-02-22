@@ -1004,7 +1004,7 @@ gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=
 if(FALSE) {
 	p_dis=0.30
 	n_family=1000
-	family_strct="2g.4a.1u"
+	family_strct="2g.3a.1u" #2g.2a.2u, 2g.3a.1u, 2g.3a.1u
 	f=0.01
 	r=1
 }
@@ -1544,7 +1544,7 @@ family.test.nofounder <- function(data=family_generated_2c, f=risk.variant.id) {
 
 ##test for TRAP based on imputation of the haplotype carrier status
 ##assuming the IBD status is known
-family.test.nofounder.impute <- function(data=family_generated_3c, f=risk.variant.id, method="trap", null.maf=NULL, sample.f=F, pop.f.off=0) {
+family.test.nofounder.impute <- function(data=family_generated_3c, f=risk.variant.id, method="trap", null.maf=NULL, sample.f=F, no.pop=F, pop.f.off=0) {
   #check
   stopifnot(method %in% c("trap", "trafic"))
   
@@ -1802,11 +1802,17 @@ family.test.nofounder.impute <- function(data=family_generated_3c, f=risk.varian
   	}
   	
   	#whether use pop.f or sample.f to impute
-  	if(sample.f==F) {
+  	if(no.pop==F) { #variant found in the database
   	  pop.f.temp <- risk.haplo.f
-  	} else {
-  	  pop.f.temp <- mean(do.call(rbind, data.family.list)$carrier)
+  	} else if(no.pop==T) { #variant not found in the database
+  	  if(sample.f==T) {  #use sample allele frequency 
+  	    pop.f.temp <- mean(do.call(rbind, data.family.list)$carrier)
+  	  } else {
+  	    pop.f.temp <- length(snp2look.idx)*0.001 #assume f=0.001 and add up all variants of interests
+  	  }
   	}
+  	  
+   	
     #start looking at each family
     test.stat <- sapply(data.family.list, function(x) {
       carrier_status <- x[,2]
