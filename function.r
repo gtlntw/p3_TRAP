@@ -1002,10 +1002,10 @@ gene_family_pe <- function(family_strct=family_strct_ped, n_family= 1000, p_dis=
 # gene_family_pe(family_strct=family_strct_ped, n_family= 100, p_dis=0.1, Beta=Beta)
 ##example
 if(FALSE) {
-	p_dis=0.30
+	p_dis=0.1
 	n_family=1000
-	family_strct="2g.3a.1u" #2g.2a.2u, 2g.3a.1u, 2g.3a.1u
-	f=0.01
+	family_strct="2g.3a.2u" #2g.2a.2u, 2g.3a.1u, 2g.3a.2u, 2g.4a.1u, 3g.3a.4u, 3g.2a.5u
+	f=0.005
 	r=1
 }
 ##construct kinship matrix
@@ -1802,7 +1802,7 @@ family.test.nofounder.impute <- function(data=family_generated_3c, f=risk.varian
   	}
   	
   	#whether use pop.f or sample.f to impute
-  	if(no.pop==F) { #variant found in the database
+  	if(no.pop==F & sample.f==F) { #variant found in the database
   	  pop.f.temp <- risk.haplo.f
   	} else if(no.pop==T) { #variant not found in the database
   	  if(sample.f==T) {  #use sample allele frequency 

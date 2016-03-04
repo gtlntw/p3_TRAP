@@ -42,10 +42,11 @@ n_cc <- length(family_strct_ped$person)/2*n_family
 # risk.variant.id <- c(5,15,16,19,20,27,31,35,43,49)
 (n_snp_f <- sum(snp$FREQ1<f))
 (n_snp_f_causal <- round(n_snp_f*0.1)) #10 percent of snp with maf < f are causal
-# risk.variant.id <<- sort(sample(which(0.0001<snp$FREQ1 & snp$FREQ1<f), round(n_snp_f_causal)))
+# risk.variant.id <<- sort(sample(which(0.0001<snp$FREQ1 & snp$FREQ1<f), n_snp_f_causal))
 # risk.haplo.id <- which(apply(2-as.matrix(haplotype[, risk.variant.id+2]), 1, sum)>0)
 risk.variant.id <- switch(as.character(f),
-                          "0.005"=c(5,32,37),
+                          "0.005n3"=c(5,32,37),
+													"0.005n7"=c(6,18,23,34,38,43,44),
                           "0.01"=c(4,37,38),
                           "0.05"=c(12,20,37,44),
                           "0.2"=c(1,4,22,26)
@@ -76,7 +77,6 @@ for(i in 1:n_rep) {
   ##test based on new imputation framework
   result.trap.3c.noimpute <- family.test(data=family_generated, f=risk.variant.id, nofounderphenotype=T)$p.value
   result.trap.3c.impute.founder.pop.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, pop.f.off=0)
-  result.trap.3c.impute.founder.sample.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=T, no.pop=T)
   result.trap.3c.impute.founder.assumed.f <- family.test.nofounder.impute(data=family_generated_c, f=risk.variant.id, sample.f=F, no.pop=T)
   
   
@@ -84,7 +84,7 @@ for(i in 1:n_rep) {
   if(sim.fail==F) {
     #only report p.value
     sim_result[[i]] <- data.frame(result.trap.3c.noimpute, result.trap.3c.impute.founder.pop.f,
-                    result.trap.3c.impute.founder.sample.f, result.trap.3c.impute.founder.assumed.f) 
+                    result.trap.3c.impute.founder.assumed.f) 
   } else {
     warning("error occured!!")
     next
@@ -113,7 +113,7 @@ opts['n_rep_total']=1000 #total number of replications
 opts['n_rep']=100 #number of replications in each parallele job
 opts['n_ite']=opts['n_rep_total']/opts['n_rep'] #number of parallele jobs
 opts['n_family']=1000 #number of family
-opts['p_dis']=0.3 #prevalence
+opts['p_dis']=0.1 #prevalence
 
 ######################
 #1.0. log the start time
@@ -129,8 +129,8 @@ opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a qui
 #1.1. run simulations by calling mainSim.R
 ######################
 inputFilesOK = []
-opts['f'] = 0.01 #super rare
-opts['family_strct'] = '\"2g.4a.1u\"' #family structure
+opts['f'] = '0.005n3' #super super rare
+opts['family_strct'] = '\"2g.3a.2u\"' #family structure
 for i in numpy.arange(1,2.4,0.1):
 	for j in range(opts['n_ite']):
 		opts['r'] = i
@@ -141,8 +141,9 @@ for i in numpy.arange(1,2.4,0.1):
 		makeJob(opts['launchMethod'], tgt, dep, cmd)
 		opts['seed'] += 1	
 
-opts['f'] = 0.05 #less rare
-for i in numpy.arange(1,1.8,0.1):
+opts['f'] = '0.005n7' #super super rare
+opts['family_strct'] = '\"2g.3a.2u\"' #family structure
+for i in numpy.arange(1,2.4,0.1):
 	for j in range(opts['n_ite']):
 		opts['r'] = i
 		tgt = 'callmainSim_{seed}.OK'.format(**opts)
@@ -150,19 +151,8 @@ for i in numpy.arange(1,1.8,0.1):
 		dep = ''
 		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
 		makeJob(opts['launchMethod'], tgt, dep, cmd)
-		opts['seed'] += 1	
-
-opts['f'] = 0.20 #common
-for i in numpy.arange(1,1.6,0.1):
-	for j in range(opts['n_ite']):
-		opts['r'] = i
-		tgt = 'callmainSim_{seed}.OK'.format(**opts)
-		inputFilesOK.append(tgt)
-		dep = ''
-		cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
-		makeJob(opts['launchMethod'], tgt, dep, cmd)
-		opts['seed'] += 1	
-
+		opts['seed'] += 1			
+		
 ######################
 #1.2. combine the result
 ######################
@@ -194,13 +184,13 @@ cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 #check power using true, imputed founder carrier, minimum offspring carrier
 #three versions -- command and rare and super rare #2 for common, 7 for rare, 39 for super rare
-result <- read.csv("figure 4. fouder imputatuion estimate nontransmitted by population f see power.csv", header=T)
-result <- result %>% gather(key="method", value="p.value", 9:18)
+result <- read.csv("figure 4b. fouder imputatuion estimate nontransmitted by population f see power.csv", header=T)
+result <- result %>% gather(key="method", value="p.value", -c(1:8))
 result.plot <- result %>% group_by(f, risk.haplo.f, r, method) %>% 
   summarise(n=n(), power=mean(p.value<0.05, na.rm=T))
-result.plot$method <- factor(result.plot$method, labels=c("w.o. imputation", "pop.f", "pop.f off 5%", "pop.f off 10%",
-                                                "pop.f off 20%", "pop.f off 50%", "pop.f off -5%", "pop.f off -10%"
-                                                , "pop.f off -20%", "pop.f off -50%"))
+# result.plot$method <- factor(result.plot$method, labels=c("w.o. imputation", "pop.f", "pop.f off 5%", "pop.f off 10%",
+#                                                 "pop.f off 20%", "pop.f off 50%", "pop.f off -5%", "pop.f off -10%"
+#                                                 , "pop.f off -20%", "pop.f off -50%"))
 
 #only include 20%off
 pd <- position_dodge(0.0)

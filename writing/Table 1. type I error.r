@@ -59,12 +59,12 @@ write(paste("geneA 1", n_snp_f_causal), paste0("genes_",seed,".txt"))
 write(rep("1", n_snp_f_causal), paste0("weight_",seed,".txt"), sep="\n")
 write(rep("1", n_snp_f_causal), paste0("variant_pass_",seed,".txt"), sep="\n")
 
-rep.idx <<- 1
-sim_result <- replicate(n_rep, {
-  print(rep.idx)
-  rep.idx <<- rep.idx + 1
+sim_result <- list()
+for(i in 1:n_rep) {
+  print(i)
+  sim.fail <- F
   
-  family_generated <<- gene_family_pe(family_strct=family_strct_ped, n_family=n_family, p_dis=p_dis, Beta=Beta)
+  family_generated <<- gene_family_pe(family_strct=family_strct_ped, n_family=n_family, p_dis=p_dis, Beta=Beta, exact_affected = F)
   
   #add variant 3 since FB-SKAT can only work with 2+ in a gene
   family_generated_diploid <- hap2dip(data=family_generated, risk.variant.id=risk.variant.id, save.file=T)
@@ -72,9 +72,15 @@ sim_result <- replicate(n_rep, {
   ##test based on new imputation framework
   result.trap <- family.test(data=family_generated, f=risk.variant.id)$p.value
   result.trafic_ext <- family.test.trafic.ext(data=family_generated, f=risk.variant.id)$p.value
-  result.pedgene <- pedgene(ped=family_generated_diploid$ped, geno=family_generated_diploid$geno)
-  result.pedgene.vc <- result.pedgene$pgdf$pval.kernel
-  result.pedgene.burden <- result.pedgene$pgdf$pval.burden
+  sim.fail <- tryCatch({  
+      result.pedgene <- pedgene(ped=family_generated_diploid$ped, geno=family_generated_diploid$geno)
+      print(result.pedgene)
+      result.pedgene.vc <- result.pedgene$pgdf$pval.kernel
+      result.pedgene.burden <- result.pedgene$pgdf$pval.burden
+      F
+    }, 
+    error = function(e) return(T) 
+  )
   
   system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 0 0", sep=""))
   system(paste("/net/frodo/home/khlin/p3/FB-SKAT/FB-SKAT_v2.1 data_",seed,".ped variant_pass_",seed,".txt genes_",seed,".txt weight_",seed,".txt results_", seed, "_ mendelian_errors_",seed,"_ 10000 1 0.01 1 0", sep=""), ignore.stdout = TRUE)
@@ -89,25 +95,27 @@ sim_result <- replicate(n_rep, {
   obj <- SKAT_Null_Model(data.cc.diploid$ped$trait ~ 1, out_type="D")
   result.cc <- SKAT(as.matrix(data.cc.diploid$geno[, -c(1:2)]), obj, weights.beta = c(1,1), r.corr = 1)$p.value
   
+  #skip return when errors occured
+  if(sim.fail==F) {
   #only report p.value
-  c(result.trap, result.trafic_ext, 
+  sim_result[[i]] <- data.frame(result.trap, result.trafic_ext, 
     result.pedgene.vc, result.pedgene.burden,
     result.fbskat.vc, result.fbskat.burden, 
-    result.cc)
-})
+    result.cc) 
+  } else {
+    warning("error occured!!")
+    next
+  }
+}
 ##remove junk files produced by fbskat
 system(paste("rm results_",seed,"*.txt", sep=""))
 system(paste("rm mendelian_errors_",seed,"*.txt", sep=""))
 system(paste("rm data_",seed,"*.ped", sep=""))
-system(paste("rm genes_",seed,"*.ped", sep=""))
-system(paste("rm weight_",seed,"*.ped", sep=""))
-system(paste("rm variant_pass_",seed,"*.ped", sep=""))
+system(paste("rm genes_",seed,"*.txt", sep=""))
+system(paste("rm weight_",seed,"*.txt", sep=""))
+system(paste("rm variant_pass_",seed,"*.txt", sep=""))
 ## Write out your results to a csv file
-result.df <- as.data.frame(t(sim_result))
-colnames(result.df) <- c("result.trap", "result.trafic_ext", 
-                         "result.pedgene.vc", "result.pedgene.burden",
-                         "result.fbskat.vc", "result.fbskat.burden",
-                         "result.cc")
+result.df <- do.call(rbind, sim_result)
 result.df <- cbind(seed,f,r,p_dis,risk.variant.id=paste(c(risk.variant.id), collapse = "_"),risk.haplo.f,n_family,family_strct,result.df)
 write.csv(result.df, paste("res_",seed,"_",r,"_",f,"_",n_family,".csv",sep=""), row.names=FALSE)
 ## R.miSniam
@@ -118,10 +126,10 @@ write.csv(result.df, paste("res_",seed,"_",r,"_",f,"_",n_family,".csv",sep=""), 
 ##initialize
 opts['seed']=1000 #starting seed number
 opts['n_rep_total']=1000000 #total number of replications
-opts['n_rep']=100 #number of replications in each parallele job
+opts['n_rep']=500 #number of replications in each parallele job
 opts['n_ite']=opts['n_rep_total']/opts['n_rep'] #number of parallele jobs
 opts['n_family']=1000 #number of family
-opts['p_dis']=0.4 #prevalence
+opts['p_dis']=0.1 #prevalence
 
 ######################
 #1.0. log the start time
@@ -131,13 +139,15 @@ dep = ''
 cmd = ['[ ! -f {outputDir}/runmake_{jobName}_time.log ] && echo > {outputDir}/runmake_{jobName}_time.log; date | awk \'{{print "Simulations pipeline\\n\\nstart: "$$0}}\' >> {outputDir}/runmake_{jobName}_time.log'.format(**opts)]
 makeJob('local', tgt, dep, cmd)
 
-opts["param"] = "--time=1-12:0 --exclude=dl3601" #indicate this is a quick job
+opts["exclude"] = "--exclude=../exclude_node.txt"
+opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
 ######################
 #1.1. run simulations by calling mainSim.R
 ######################
 inputFilesOK = []
-opts['family_strct'] = '\"2g.3a.1u\"' #family structure
-f = [0.01, 0.20] #rare and common
+f = [0.01] #rare
+
+opts['family_strct'] = '\"2g.2a.2u\"' #family structure
 for h in f:
 	for i in numpy.arange(1,1.05,0.1):
 		for j in range(opts['n_ite']):
@@ -150,8 +160,21 @@ for h in f:
 			makeJob(opts['launchMethod'], tgt, dep, cmd)
 			opts['seed'] += 1	
 
-opts["param"] = "--mem-per-cpu=4096 --time=1-12:0 --exclude=dl3601" #indicate this is a quick job
-opts['family_strct'] = '\"3g.3a.4u\"' #family structure
+opts['family_strct'] = '\"2g.3a.1u\"' #family structure
+for h in f:
+	for i in numpy.arange(1,1.05,0.1):
+		for j in range(opts['n_ite']):
+			opts['f'] = h
+			opts['r'] = i
+			tgt = 'callmainSim_{seed}.OK'.format(**opts)
+			inputFilesOK.append(tgt)
+			dep = ''
+			cmd = ['R --vanilla --args seed {seed} n_rep {n_rep} r {r} f {f} n_family {n_family} p_dis {p_dis} family_strct {family_strct} < mainSim.R > mainSim{seed}_{n_rep}_{r}_{n_family}_{p_dis}_{f}_{family_strct}.Rout 2>&1'.format(**opts)]
+			makeJob(opts['launchMethod'], tgt, dep, cmd)
+			opts['seed'] += 1	
+
+opts["param"] = "--mem-per-cpu=4096 --time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
+opts['family_strct'] = '\"3g.2a.5u\"' #family structure
 for h in f:
 	for i in numpy.arange(1,1.05,0.1):
 		for j in range(opts['n_ite']):
@@ -169,27 +192,19 @@ for h in f:
 ######################
 tgt = 'pasteResults.OK'
 dep = ' '.join(inputFilesOK)
-cmd = ['Rscript paste_mainSim_results.R']
+cmd = ['python paste_mainSim_results.py']
 makeJob('local', tgt, dep, cmd)
 
 ######################
-#1.3. delete unnecesary files
-######################
-tgt = 'delTempFile.OK'
-dep = 'pasteResults.OK'
-cmd = ['rm -f result*.txt mendelian*.txt gene*.txt weight*.txt variant_pass*.txt data*.ped'.format(**opts)]
-makeJob('local', tgt, dep, cmd)
-
-######################
-#1.4. copy the results to a folder with name $jobName
+#1.3. copy the results to a folder with name $jobName
 ######################
 tgt = 'backupResult.OK'
-dep = 'delTempFile.OK'
+dep = 'pasteResults.OK'
 cmd = ['cp * {jobName}/'.format(**opts)]
 makeJob('local', tgt, dep, cmd)
 
 ######################
-#1.5. log the end time
+#1.4. log the end time
 ######################
 tgt = '{outputDir}/end.runmake.{jobName}.OK'.format(**opts)
 dep = 'pasteResults.OK'

@@ -211,7 +211,7 @@ cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2",
 cbbPalette <- c("#000000", "#E69F00", "#56B4E9", "#009E73", "#F0E442", "#0072B2", "#D55E00", "#CC79A7")
 #check power using true, imputed founder carrier, minimum offspring carrier
 #three versions -- command and rare and super rare #2 for common, 7 for rare, 39 for super rare
-result <- read.csv("figure 1. correct trap and trafic_ext compare with pedgene, cc, and fbat_ext 2g2c_at p_dis0.1.csv", header=T)
+result <- read.csv("2016-02-19 figure 1. correct trap and trafic_ext compare with pedgene, cc, and fbat_ext 2g2c_at p_dis0.01.csv", header=T)
 result <- result %>% gather(key="method", value="p.value", 9:15)
 result.plot <- result %>% group_by(f, risk.variant.id, risk.haplo.f, r, method) %>% 
   summarise(n=n(), power=mean(p.value<2.5*10^-6, na.rm=T))

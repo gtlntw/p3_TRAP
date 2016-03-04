@@ -202,11 +202,11 @@ filter(result.plot, grepl("TRAP|TRAFIC_EXT", method)) %>% ggplot(aes(x=r, y=powe
   theme(legend.position="bottom", panel.background = element_rect(fill="grey85"))
 
 #all 6
-ggplot(result.plot, aes(x=r, y=power, col=family_strct)) +
+filter(result.plot, !grepl("vc", method)) %>% ggplot(aes(x=r, y=power, col=family_strct)) +
   facet_wrap(~method) +
   #   geom_point(size=3, alpha=1) +
   geom_line(size=1.2, alpha=0.7) +
-  ggtitle("f=0.0116") +
+  ggtitle("f=0.01") +
   labs(x="relative risk r") +
   theme_gray(base_size = 20) +
   theme(legend.position="bottom", panel.background = element_rect(fill="grey85"))
