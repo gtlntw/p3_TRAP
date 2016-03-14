@@ -140,7 +140,8 @@ cmd = ['[ ! -f {outputDir}/runmake_{jobName}_time.log ] && echo > {outputDir}/ru
 makeJob('local', tgt, dep, cmd)
 
 opts["exclude"] = "--exclude=../exclude_node.txt"
-opts["param"] = "--time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
+opts["time"] = "--time=3-0:0"
+opts["param"] = "{time} {exclude}".format(**opts) #indicate this is a quick job
 ######################
 #1.1. run simulations by calling mainSim.R
 ######################
@@ -173,7 +174,7 @@ for h in f:
 			makeJob(opts['launchMethod'], tgt, dep, cmd)
 			opts['seed'] += 1	
 
-opts["param"] = "--mem-per-cpu=4096 --time=1-12:0 {exclude}".format(**opts) #indicate this is a quick job
+opts["param"] = "--mem-per-cpu=6144 {time} {exclude}".format(**opts) #indicate this is a quick job
 opts['family_strct'] = '\"3g.2a.5u\"' #family structure
 for h in f:
 	for i in numpy.arange(1,1.05,0.1):
